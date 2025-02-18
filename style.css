@@ -1,0 +1,57 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #fafafa;
+}
+  
+header {
+    padding: 20px;
+    background: #f0f0f0;
+    text-align: center;
+}
+
+.container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    padding: 10px;
+}
+
+.viz {
+    border: 1px solid #ccc;
+    margin: 10px;
+    padding: 10px;
+    background: #eaeaea;
+}
+
+#map { 
+    width: 800px; height: 500px; 
+}
+#histogram {
+    width: 600px; height: 400px; 
+}
+#scatterplot { 
+    width: 600px; height: 400px; 
+}
+
+.dropdown {
+    margin: 10px;
+    text-align: center;
+}
+
+/* Tooltip styling */
+.tooltip {
+    position: absolute;
+    text-align: left;
+    width: auto;
+    padding: 8px;
+    font: 12px sans-serif;
+    background: lightsteelblue;
+    border: 1px solid #333;
+    border-radius: 4px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+}
+  

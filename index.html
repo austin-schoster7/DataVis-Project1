@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>US Counties Socioeconomic & Health Visualization</title>
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>US Counties Socioeconomic & Health Dashboard</h1>
+    <h3>Exploring the relationship between income and socioeconomic/health outcomes across US counties</h3>
+    <p>Data Sources: USDA Atlas and CDC Heart & Stroke Atlas</p>
+    <p>Visualization built with D3.js and TopoJSON</p>
+    <p>Made by Austin Schoster</p>
+  </header>
+  
+  <!-- Dropdown to select a data attribute -->
+  <div class="dropdown">
+    <label for="attributeSelect">Select Attribute: </label>
+    <select id="attributeSelect">
+      <option value="poverty_perc">Poverty Percent</option>
+      <option value="percent_smoking">Percent Smoking</option>
+      <option value="median_household_income">Median Household Income</option>
+      <option value="percent_stroke">Percent Stroke</option>
+    </select>
+  </div>
+  
+  <!-- Container for visualizations -->
+  <div class="container">
+    <div id="map" class="viz"></div>
+    <div id="histogram" class="viz"></div>
+    <div id="scatterplot" class="viz"></div>
+  </div>
+  
+  <!-- Tooltip container -->
+  <div id="tooltip" class="tooltip"></div>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+
+  <script src="main.js"></script>
+</body>
+</html>
