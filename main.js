@@ -39,6 +39,13 @@ const attributeDisplayNames = {
   percent_stroke: "Percent Stroke",
 };
 
+const colorSchemes = {
+  poverty_perc: d3.schemeBlues[9],
+  percent_smoking: d3.schemeOranges[9],
+  median_household_income: d3.schemeGreens[9],
+  percent_stroke: d3.schemePurples[9]
+};
+
 // Global variables to store the data
 let countyData;
 let us;
@@ -58,7 +65,9 @@ function hideTooltip() {
     .style("opacity", 0);
 }
 
-function updateHighlights() {
+function updateHighlights(selectedAttr) {
+  if (!selectedAttr) selectedAttr = d3.select("#attributeSelect").node().value;
+
   // Combine clicked (selectedIDs) and brushed (brushedIDs) selections
   let effectiveIDs = new Set([...selectedIDs, ...brushedIDs]);
 
@@ -81,10 +90,13 @@ function updateHighlights() {
     })
     .attr("fill", d => {
       const fips = String(d.cnty_fips).padStart(5, '0');
-      // Clicked counties get a distinct color (red), brushed-only remain orange.
-      if (selectedIDs.has(fips)) return "red";
-      if (brushedIDs.has(fips)) return "orange";
-      return "orange";
+      // Clicked counties are red unless the attribute is percent_smoking which is blue for visibility
+      if (selectedIDs.has(fips)) {
+        if (selectedAttr === "percent_smoking") return "blue";
+        return "red";
+      }
+      if (brushedIDs.has(fips)) return colorSchemes[selectedAttr][6];
+      return colorSchemes[selectedAttr][6];
     })
     .each(function(d) {
       const fips = String(d.cnty_fips).padStart(5, '0');
@@ -102,6 +114,9 @@ function updateVisualizations(selectedAttr, scatterY) {
   const secondAttr = scatterY || "median_household_income";
   const secondDisplayName = attributeDisplayNames[secondAttr] || secondAttr;
 
+  // Get the color scheme for the selected attribute
+  const chosenScheme = colorSchemes[selectedAttr] || d3.schemeBlues[9]; 
+
   // Format numbers in the legend
   const formatK = d3.format(".2s");
 
@@ -111,8 +126,13 @@ function updateVisualizations(selectedAttr, scatterY) {
 
   // Convert the selected attribute to numbers.
   countyData.forEach(d => { d[selectedAttr] = +d[selectedAttr]; });
-  colorScale.domain(d3.extent(countyData, d => d[selectedAttr]));
 
+  // Make a new color scale each time based on which attribute is selected:
+  const colorScale = d3.scaleQuantize()
+    .range(chosenScheme)
+    .domain(d3.extent(countyData, d => d[selectedAttr]));
+
+    
   // === Update Choropleth Map ===
   svgMap.selectAll("path")
   // Set the fill attribute based on the county data
@@ -160,7 +180,7 @@ function updateVisualizations(selectedAttr, scatterY) {
     } else {
       selectedIDs.add(fips);
     }
-    updateHighlights();
+    updateHighlights(selectedAttr);
     event.stopPropagation();
   });
 
@@ -209,6 +229,7 @@ function updateVisualizations(selectedAttr, scatterY) {
     .attr("font-size", "10px")
     .text(formatK(legendData[legendData.length - 1].extent[1]));
 
+
   // === Update Histogram ===
   const histMargin = {top: 30, right: 20, bottom: 50, left: 70};
   const histInnerWidth = histogramWidth - histMargin.left - histMargin.right;
@@ -249,7 +270,7 @@ function updateVisualizations(selectedAttr, scatterY) {
     .attr("y", d => yHist(d.length))
     .attr("width", d => xHist(d.x1) - xHist(d.x0) - 1)
     .attr("height", d => histInnerHeight - yHist(d.length))
-    .attr("fill", "steelblue")
+    .attr("fill", colorSchemes[selectedAttr][6])
     .on("mouseover", (event, d) => {
         showTooltip(
           `<strong>Range:</strong> ${d.x0} - ${d.x1}<br><strong>Count:</strong> ${d.length}`,
@@ -286,6 +307,7 @@ function updateVisualizations(selectedAttr, scatterY) {
     .attr("text-anchor", "middle")
     .style("font-size", "12px")
     .text("Frequency");
+
 
   // === Update Scatterplot ===
   const scatterMargin = {top: 30, right: 20, bottom: 50, left: 70};
@@ -327,7 +349,7 @@ function updateVisualizations(selectedAttr, scatterY) {
     .attr("cx", d => xScatter(d[selectedAttr]))
     .attr("cy", d => yScatter(d[secondAttr]))
     .attr("r", 3)
-    .attr("fill", "orange")
+    .attr("fill", colorSchemes[selectedAttr][6])
     .on("mouseover", (event, d) => {
         // Show selected attribute and median household income
         const selectedAttr = d3.select("#attributeSelect").node().value;
@@ -351,7 +373,7 @@ function updateVisualizations(selectedAttr, scatterY) {
       } else {
         selectedIDs.add(fips);
       }
-      updateHighlights();
+      updateHighlights(selectedAttr);
       // Stop the event from propagating (so it doesn't interfere with brushing)
       event.stopPropagation();
     });
@@ -381,7 +403,7 @@ function updateVisualizations(selectedAttr, scatterY) {
   } else {
     brushedIDs.clear();
   }
-    updateHighlights();
+    updateHighlights(selectedAttr);
   }
 
   scatterGroup.append("g")
@@ -477,6 +499,6 @@ Promise.all([
 d3.select("#clearSelections").on("click", () => {
   selectedIDs.clear();
   brushedIDs.clear();
-  updateHighlights();
+  updateHighlights(d3.select("#attributeSelect").node().value);
 });
 
