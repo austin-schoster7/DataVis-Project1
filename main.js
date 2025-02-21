@@ -96,10 +96,10 @@ function updateHighlights() {
 }
 
 // Function to update visualizations when the attribute selection changes
-function updateVisualizations(selectedAttr) {
+function updateVisualizations(selectedAttr, scatterY) {
   // Get display names
   const displayName = attributeDisplayNames[selectedAttr] || selectedAttr;
-  const secondAttr = "median_household_income";
+  const secondAttr = scatterY || "median_household_income";
   const secondDisplayName = attributeDisplayNames[secondAttr] || secondAttr;
 
   // Format numbers in the legend
@@ -406,7 +406,7 @@ function updateVisualizations(selectedAttr) {
     .attr("y", -scatterMargin.left + 15)
     .attr("text-anchor", "middle")
     .style("font-size", "12px")
-    .text("Median Household Income");
+    .text(secondDisplayName);
 }
 
 // Draw a static map title (which will be updated dynamically)
@@ -456,12 +456,19 @@ Promise.all([
       console.log("Map county:", countyDatum);
     });
   const defaultAttr = d3.select("#attributeSelect").node().value;
+  const defaultSecondAttr = d3.select("#scatterY").node().value;
 
   // Initial update of visualizations and update each time the dropdown changes
-  updateVisualizations(defaultAttr);
+  updateVisualizations(defaultAttr, defaultSecondAttr);
   d3.select("#attributeSelect").on("change", function() {
     const selectedAttr = this.value;
-    updateVisualizations(selectedAttr);
+    const scatterY = d3.select("#scatterY").node().value;
+    updateVisualizations(selectedAttr, scatterY);
+  });
+  d3.select("#scatterY").on("change", function() {
+    const scatterY = this.value;
+    const selectedAttr = d3.select("#attributeSelect").node().value;
+    updateVisualizations(selectedAttr, scatterY);
   });
 }).catch(error => {
   console.error("Error loading data: ", error);

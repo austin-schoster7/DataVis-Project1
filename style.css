@@ -74,7 +74,7 @@ header {
     background-color: #bd4e4e;
 }
 
-#attributeSelect {
+#attributeSelect, #scatterY {
     margin: 10px;
     text-align: center;
     background: #f0f0f0;
