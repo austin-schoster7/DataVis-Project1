@@ -3,6 +3,12 @@ const mapWidth = 800, mapHeight = 500;
 const histogramWidth = 600, histogramHeight = 400;
 const scatterWidth = 600, scatterHeight = 400;
 
+// Global set to store brushed county FIPS codes
+let brushedIDs = new Set();
+
+// Global set to store FIPS codes of counties that have been clicked
+let selectedIDs = new Set();
+
 // Create SVG elements for each view
 const svgMap = d3.select("#map").append("svg")
   .attr("width", mapWidth)
@@ -52,6 +58,43 @@ function hideTooltip() {
     .style("opacity", 0);
 }
 
+function updateHighlights() {
+  // Combine clicked (selectedIDs) and brushed (brushedIDs) selections
+  let effectiveIDs = new Set([...selectedIDs, ...brushedIDs]);
+
+  // --- Update Map ---
+  svgMap.selectAll("path")
+    .attr("opacity", d => {
+      const countyDatum = countyData.find(cd =>
+        String(cd.cnty_fips).padStart(5, '0') === String(d.id).padStart(5, '0')
+      );
+      // If nothing is selected, show full opacity.
+      if (effectiveIDs.size === 0) return 1;
+      return countyDatum && effectiveIDs.has(String(countyDatum.cnty_fips).padStart(5, '0')) ? 1 : 0.2;
+    });
+
+  // --- Update Scatterplot ---
+  svgScatter.selectAll("circle")
+    .attr("opacity", d => {
+      if (effectiveIDs.size === 0) return 1;
+      return effectiveIDs.has(String(d.cnty_fips).padStart(5, '0')) ? 1 : 0.2;
+    })
+    .attr("fill", d => {
+      const fips = String(d.cnty_fips).padStart(5, '0');
+      // Clicked counties get a distinct color (red), brushed-only remain orange.
+      if (selectedIDs.has(fips)) return "red";
+      if (brushedIDs.has(fips)) return "orange";
+      return "orange";
+    })
+    .each(function(d) {
+      const fips = String(d.cnty_fips).padStart(5, '0');
+      // Raise circles that are clicked so they are on top
+      if (selectedIDs.has(fips)) {
+        d3.select(this).raise();
+      }
+    });
+}
+
 // Function to update visualizations when the attribute selection changes
 function updateVisualizations(selectedAttr) {
   // Get display names
@@ -77,6 +120,10 @@ function updateVisualizations(selectedAttr) {
     const countyDatum = countyData.find(cd =>
       String(cd.cnty_fips).padStart(5, '0') === String(d.id).padStart(5, '0')
     );
+    // If no data or it's NaN, show gray (or whatever color you prefer)
+    if (!countyDatum || isNaN(countyDatum[selectedAttr])) {
+      return "#ccc";
+    }
     return countyDatum ? colorScale(countyDatum[selectedAttr]) : "#ccc";
   })
   // Attach the tooltip event handlers.
@@ -85,8 +132,11 @@ function updateVisualizations(selectedAttr) {
     const countyDatum = countyData.find(cd =>
       String(cd.cnty_fips).padStart(5, '0') === String(d.id).padStart(5, '0')
     );
-    const countyName = countyDatum && countyDatum.display_name ? countyDatum.display_name : "FIPS: " + d.id;
-    const value = countyDatum ? countyDatum[d3.select("#attributeSelect").node().value] : "N/A";
+    const countyName = countyDatum?.display_name ?? "FIPS: " + d.id;
+    let value = "N/A";
+    if (countyDatum && !isNaN(countyDatum[selectedAttr])) {
+      value = countyDatum[selectedAttr];
+    }
     showTooltip(
       `<strong>${countyName.replaceAll('"', '')}</strong><br>${attributeDisplayNames[d3.select("#attributeSelect").node().value] || d3.select("#attributeSelect").node().value}: ${value}`,
       event
@@ -97,7 +147,22 @@ function updateVisualizations(selectedAttr) {
       .style("left", (event.pageX + 10) + "px")
       .style("top", (event.pageY + 10) + "px");
   })
-  .on("mouseout", hideTooltip);
+  .on("mouseout", hideTooltip)
+  .on("click", (event, d) => {
+    // Toggle the clicked county on the map.
+    const countyDatum = countyData.find(cd =>
+      String(cd.cnty_fips).padStart(5, '0') === String(d.id).padStart(5, '0')
+    );
+    if (!countyDatum) return;
+    const fips = String(countyDatum.cnty_fips).padStart(5, '0');
+    if (selectedIDs.has(fips)) {
+      selectedIDs.delete(fips);
+    } else {
+      selectedIDs.add(fips);
+    }
+    updateHighlights();
+    event.stopPropagation();
+  });
 
   // === Add/Update Map Legend ===
   svgMap.selectAll(".legend").remove();
@@ -187,7 +252,7 @@ function updateVisualizations(selectedAttr) {
     .attr("fill", "steelblue")
     .on("mouseover", (event, d) => {
         showTooltip(
-          `<strong>Range:</strong> ${Math.round(d.x0)} - ${Math.round(d.x1)}<br><strong>Count:</strong> ${d.length}`,
+          `<strong>Range:</strong> ${d.x0} - ${d.x1}<br><strong>Count:</strong> ${d.length}`,
           event
         );
       })
@@ -227,6 +292,11 @@ function updateVisualizations(selectedAttr) {
   const scatterInnerWidth = scatterWidth - scatterMargin.left - scatterMargin.right;
   const scatterInnerHeight = scatterHeight - scatterMargin.top - scatterMargin.bottom;
 
+  // Filter out data points with missing values for the selected attribute
+  const filteredData = countyData.filter(d =>
+    !isNaN(d[selectedAttr]) && !isNaN(d.median_household_income)
+  );  
+
   svgScatter.selectAll("*").remove();
 
   svgScatter.append("text")
@@ -240,18 +310,18 @@ function updateVisualizations(selectedAttr) {
   const scatterGroup = svgScatter.append("g")
     .attr("transform", `translate(${scatterMargin.left}, ${scatterMargin.top})`);
 
-  countyData.forEach(d => { d[secondAttr] = +d[secondAttr]; });
+  filteredData.forEach(d => { d[secondAttr] = +d[secondAttr]; });
 
   const xScatter = d3.scaleLinear()
-    .domain(d3.extent(countyData, d => d[selectedAttr])).nice()
+    .domain(d3.extent(filteredData, d => d[selectedAttr])).nice()
     .range([0, scatterInnerWidth]);
 
   const yScatter = d3.scaleLinear()
-    .domain(d3.extent(countyData, d => d[secondAttr])).nice()
+    .domain(d3.extent(filteredData, d => d[secondAttr])).nice()
     .range([scatterInnerHeight, 0]);
 
   scatterGroup.selectAll("circle")
-    .data(countyData)
+    .data(filteredData)
     .enter()
     .append("circle")
     .attr("cx", d => xScatter(d[selectedAttr]))
@@ -272,7 +342,47 @@ function updateVisualizations(selectedAttr) {
         .style("left", (event.pageX + 10) + "px")
         .style("top", (event.pageY + 10) + "px");
     })
-    .on("mouseout", hideTooltip);
+    .on("mouseout", hideTooltip)
+    .on("click", (event, d) => {
+      // Toggle the clicked county.
+      const fips = String(d.cnty_fips).padStart(5, '0');
+      if (selectedIDs.has(fips)) {
+        selectedIDs.delete(fips);
+      } else {
+        selectedIDs.add(fips);
+      }
+      updateHighlights();
+      // Stop the event from propagating (so it doesn't interfere with brushing)
+      event.stopPropagation();
+    });
+
+  // --- Add Brush to Scatterplot ---
+  const brush = d3.brush()
+    .extent([[0, 0], [scatterInnerWidth, scatterInnerHeight]])
+    .on("brush end", brushed);
+
+  scatterGroup.call(brush);
+
+  // Lets you use the brush and still see the tooltip
+  scatterGroup.select(".overlay").lower();
+
+  function brushed({ selection }) {
+  // If there is a brush selection...
+  if (selection) {
+    const [[x0, y0], [x1, y1]] = selection;
+    brushedIDs = new Set(
+      countyData.filter(d => {
+        // Get scatterplot coordinates for this point
+        const cx = xScatter(d[selectedAttr]);
+        const cy = yScatter(d[secondAttr]);
+        return cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1;
+      }).map(d => String(d.cnty_fips).padStart(5, '0'))
+    );
+  } else {
+    brushedIDs.clear();
+  }
+    updateHighlights();
+  }
 
   scatterGroup.append("g")
     .attr("transform", `translate(0, ${scatterInnerHeight})`)
@@ -296,7 +406,7 @@ function updateVisualizations(selectedAttr) {
     .attr("y", -scatterMargin.left + 15)
     .attr("text-anchor", "middle")
     .style("font-size", "12px")
-    .text(secondDisplayName);
+    .text("Median Household Income");
 }
 
 // Draw a static map title (which will be updated dynamically)
@@ -314,8 +424,21 @@ Promise.all([
   d3.csv("data/national_health_data_2024.csv")
 ]).then(([usData, csvData]) => {
   us = usData;
+
+  csvData.forEach(d => {
+    // Convert to Number
+    d.median_household_income = +d.median_household_income;
+    d.poverty_perc = +d.poverty_perc;
+    d.percent_smoking = +d.percent_smoking;
+  
+    // If < 0, set to NaN (so we can show "N/A" instead of removing county)
+    if (d.median_household_income < 0) d.median_household_income = NaN;
+    if (d.poverty_perc < 0) d.poverty_perc = NaN;
+    if (d.percent_smoking < 0) d.percent_smoking = NaN;
+    if (d.percent_stroke < 0) d.percent_stroke = NaN;
+  });
+
   countyData = csvData;
-  countyData = countyData.filter(d => d.median_household_income >= 0 && d.poverty_perc >= 0 && d.percent_smoking >= 0);
 
   // Update the color scale domain based on the initial attribute
   svgMap.append("g")
@@ -343,3 +466,10 @@ Promise.all([
 }).catch(error => {
   console.error("Error loading data: ", error);
 });
+
+d3.select("#clearSelections").on("click", () => {
+  selectedIDs.clear();
+  brushedIDs.clear();
+  updateHighlights();
+});
+

@@ -54,4 +54,42 @@ header {
     opacity: 0;
     transition: opacity 0.2s ease-out;
 }
-  
+
+#clearSelections {
+    margin: 10px;
+    text-align: center;
+    background: #ea6363;
+    border: 1px solid #ccc;
+    padding: 5px;
+    cursor: pointer;
+    display: inline-block;
+    border-radius: 5px;
+    font-size: 14px;
+    color: #333;
+    text-decoration: none;
+    transition: background-color 0.3s;
+}
+
+#clearSelections:hover {
+    background-color: #bd4e4e;
+}
+
+#attributeSelect {
+    margin: 10px;
+    text-align: center;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    padding: 3px;
+    cursor: pointer;
+    display: inline-block;
+    border-radius: 5px;
+    font-size: 14px;
+    color: #333;
+    text-decoration: none;
+    transition: background-color 0.3s;
+}
+
+/* Fixes issue where y axis label doesn't show for scatterplot */
+.axis-label {
+    fill: black !important;
+}
