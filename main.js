@@ -71,6 +71,8 @@ function updateHighlights(selectedAttr) {
   // Combine clicked (selectedIDs) and brushed (brushedIDs) selections
   let effectiveIDs = new Set([...selectedIDs, ...brushedIDs]);
 
+  console.log("Effective IDs:", effectiveIDs);
+
   // --- Update Map ---
   svgMap.selectAll("path")
     .attr("opacity", d => {
@@ -429,6 +431,9 @@ function updateVisualizations(selectedAttr, scatterY) {
     .attr("text-anchor", "middle")
     .style("font-size", "12px")
     .text(secondDisplayName);
+
+  // Update highlights
+  updateHighlights(selectedAttr);
 }
 
 // Draw a static map title (which will be updated dynamically)
