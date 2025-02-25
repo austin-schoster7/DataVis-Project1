@@ -108,6 +108,27 @@ function updateHighlights(selectedAttr) {
         d3.select(this).raise();
       }
     });
+
+  // --- Update Histogram ---
+  svgHist.selectAll("rect")
+    // .attr("opacity", b => {
+    //   if (effectiveIDs.size === 0) return 1;
+    //   for (const fips of effectiveIDs) {
+    //     const countyDatum = countyData.find(cd =>
+    //       String(cd.cnty_fips).padStart(5, '0') === fips
+    //     );
+    //     if (countyDatum && countyDatum[selectedAttr] >= b.x0 && countyDatum[selectedAttr] <= b.x1) {
+    //       return 1;
+    //     }
+    //   }
+    //   return 0.2;
+    // })
+    .attr("fill", b => {
+      if (b.isSelected && selectedAttr === "percent_smoking") return "blue";
+      else if (b.isSelected) return "red";
+      return colorSchemes[selectedAttr][6];
+    });
+
 }
 
 function brushedOnMap(event) {
@@ -170,6 +191,7 @@ function updateVisualizations(selectedAttr, scatterY) {
     }
     return countyDatum ? colorScale(countyDatum[selectedAttr]) : "#ccc";
   })
+  .style("cursor", "pointer")
   // Attach the tooltip event handlers.
   .on("mouseover", (event, d) => {
     // Lookup county data.
@@ -234,7 +256,45 @@ function updateVisualizations(selectedAttr, scatterY) {
     .attr("y", 0)
     .attr("width", legendItemWidth)
     .attr("height", legendHeightMap)
-    .attr("fill", d => d.color);
+    .attr("fill", d => d.color)
+    .style("cursor", "pointer")
+    .on("click", (event, bin) => {
+      const currentAttr = d3.select("#attributeSelect").node().value;
+      const [rangeMin, rangeMax] = bin.extent;
+  
+      // Collect all counties in this bin’s numeric range
+      let binCounties = new Set();
+      countyData.forEach(d => {
+        const val = d[currentAttr];
+        if (val >= rangeMin && val <= rangeMax) {
+          binCounties.add(String(d.cnty_fips).padStart(5,"0"));
+        }
+      });
+  
+      // Check if *every* county in the bin is already selected
+      let allAlreadySelected = true;
+      for (const fips of binCounties) {
+        if (!selectedIDs.has(fips)) {
+          allAlreadySelected = false;
+          break;
+        }
+      }
+  
+      // Toggle: If all are currently selected, remove them. Otherwise add them.
+      if (allAlreadySelected) {
+        for (const fips of binCounties) {
+          selectedIDs.delete(fips);
+        }
+      } 
+      else {
+        for (const fips of binCounties) {
+          selectedIDs.add(fips);
+        }
+      }
+  
+      // Re-apply highlights
+      updateHighlights(currentAttr);
+    });
 
   legend.selectAll("text")
     .data(legendData)
@@ -298,6 +358,7 @@ function updateVisualizations(selectedAttr, scatterY) {
     .attr("y", d => yHist(d.length))
     .attr("width", d => xHist(d.x1) - xHist(d.x0) - 1)
     .attr("height", d => histInnerHeight - yHist(d.length))
+    .style("cursor", "pointer")
     .attr("fill", b => {
       if (b.isSelected && selectedAttr === "percent_smoking") return "blue";
       else if (b.isSelected) return "red";
@@ -415,6 +476,7 @@ function updateVisualizations(selectedAttr, scatterY) {
     .attr("cy", d => yScatter(d[secondAttr]))
     .attr("r", 3)
     .attr("fill", colorSchemes[selectedAttr][6])
+    .style("cursor", "pointer")
     .on("mouseover", (event, d) => {
         // Show selected attribute and median household income
         const selectedAttr = d3.select("#attributeSelect").node().value;
@@ -579,6 +641,7 @@ Promise.all([
 d3.select("#clearSelections").on("click", () => {
   selectedIDs.clear();
   brushedIDs.clear();
+  svgHist.selectAll("rect").each(b => b.isSelected = false);
   updateHighlights(d3.select("#attributeSelect").node().value);
 });
 
