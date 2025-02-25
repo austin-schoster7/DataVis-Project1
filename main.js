@@ -46,6 +46,9 @@ const colorSchemes = {
   percent_stroke: d3.schemePurples[9]
 };
 
+const mapGroup = svgMap.append("g")
+    .attr("class", "county-group");
+
 // Global variables to store the data
 let countyData;
 let us;
@@ -91,22 +94,41 @@ function updateHighlights(selectedAttr) {
     .attr("fill", d => {
       const fips = String(d.cnty_fips).padStart(5, '0');
       // Clicked counties are red unless the attribute is percent_smoking which is blue for visibility
-      if (selectedIDs.has(fips)) {
+      if (selectedIDs.has(fips) || brushedIDs.has(fips)) {
         if (selectedAttr === "percent_smoking") return "blue";
         return "red";
       }
-      if (brushedIDs.has(fips)) return colorSchemes[selectedAttr][6];
+      //if (brushedIDs.has(fips)) return colorSchemes[selectedAttr][6];
       return colorSchemes[selectedAttr][6];
     })
     .each(function(d) {
       const fips = String(d.cnty_fips).padStart(5, '0');
-      // Raise circles that are clicked so they are on top
-      if (selectedIDs.has(fips)) {
+      // Raise circles that are clicked/brushed so they are on top
+      if (selectedIDs.has(fips) || brushedIDs.has(fips)) {
         d3.select(this).raise();
       }
     });
+}
 
-
+function brushedOnMap(event) {
+  if (!event.selection) {
+    // brush cleared
+    brushedIDs.clear();
+    updateHighlights();
+    return;
+  }
+  
+  const [[x0, y0], [x1, y1]] = event.selection;
+  brushedIDs = new Set();
+  
+  mapGroup.selectAll("path").each(d => {
+    const [cx, cy] = d.centroid;
+    if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) {
+      brushedIDs.add(String(d.id).padStart(5, '0'));
+    }
+  });
+  
+  updateHighlights();
 }
 
 // Function to update visualizations when the attribute selection changes
@@ -276,7 +298,11 @@ function updateVisualizations(selectedAttr, scatterY) {
     .attr("y", d => yHist(d.length))
     .attr("width", d => xHist(d.x1) - xHist(d.x0) - 1)
     .attr("height", d => histInnerHeight - yHist(d.length))
-    .attr("fill", b => b.isSelected ? "red" : colorSchemes[selectedAttr][6])
+    .attr("fill", b => {
+      if (b.isSelected && selectedAttr === "percent_smoking") return "blue";
+      else if (b.isSelected) return "red";
+      return colorSchemes[selectedAttr][6];
+    })
     .on("mouseover", (event, d) => {
         showTooltip(
           `<strong>Range:</strong> ${d.x0} - ${d.x1}<br><strong>Count:</strong> ${d.length}`,
@@ -316,9 +342,11 @@ function updateVisualizations(selectedAttr, scatterY) {
   
       // Update the fill of the histogram bars
       histGroup.selectAll("rect")
-        .attr("fill", b => 
-          b.isSelected ? "red" : colorSchemes[currentAttr][6]
-        );
+        .attr("fill", b => {
+          if (b.isSelected && selectedAttr === "percent_smoking") return "blue";
+          else if (b.isSelected) return "red";
+          return colorSchemes[selectedAttr][6];
+        });
     });
 
   histGroup.append("g")
@@ -503,8 +531,7 @@ Promise.all([
   countyData = csvData;
 
   // Update the color scale domain based on the initial attribute
-  svgMap.append("g")
-    .selectAll("path")
+  mapGroup.selectAll("path")
     .data(topojson.feature(us, us.objects.counties).features)
     .enter()
     .append("path")
@@ -515,7 +542,21 @@ Promise.all([
       const countyDatum = countyData.find(cd =>
         String(cd.cnty_fips).padStart(5, '0') === String(d.id).padStart(5, '0')
       );
+    })
+    .each(function(d) {
+      d.centroid = path.centroid(d);
     });
+
+  const mapBrush = d3.brush()
+    .extent([[0, 0], [mapWidth, mapHeight]])
+    .on("brush end", brushedOnMap);
+
+  mapGroup.call(mapBrush);
+  mapGroup.select(".overlay")
+    .style("pointer-events", "all")
+    .style("fill", "none")
+    .lower();
+
   const defaultAttr = d3.select("#attributeSelect").node().value;
   const defaultSecondAttr = d3.select("#scatterY").node().value;
 
