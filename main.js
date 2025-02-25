@@ -71,8 +71,6 @@ function updateHighlights(selectedAttr) {
   // Combine clicked (selectedIDs) and brushed (brushedIDs) selections
   let effectiveIDs = new Set([...selectedIDs, ...brushedIDs]);
 
-  console.log("Effective IDs:", effectiveIDs);
-
   // --- Update Map ---
   svgMap.selectAll("path")
     .attr("opacity", d => {
@@ -107,6 +105,8 @@ function updateHighlights(selectedAttr) {
         d3.select(this).raise();
       }
     });
+
+
 }
 
 // Function to update visualizations when the attribute selection changes
@@ -256,6 +256,10 @@ function updateVisualizations(selectedAttr, scatterY) {
 
   const bins = histogramGenerator(values);
 
+  bins.forEach(bin => {
+    bin.isSelected = false;
+  });
+
   const xHist = d3.scaleLinear()
     .domain(colorScale.domain())
     .range([0, histInnerWidth]);
@@ -272,7 +276,7 @@ function updateVisualizations(selectedAttr, scatterY) {
     .attr("y", d => yHist(d.length))
     .attr("width", d => xHist(d.x1) - xHist(d.x0) - 1)
     .attr("height", d => histInnerHeight - yHist(d.length))
-    .attr("fill", colorSchemes[selectedAttr][6])
+    .attr("fill", b => b.isSelected ? "red" : colorSchemes[selectedAttr][6])
     .on("mouseover", (event, d) => {
         showTooltip(
           `<strong>Range:</strong> ${d.x0} - ${d.x1}<br><strong>Count:</strong> ${d.length}`,
@@ -284,7 +288,38 @@ function updateVisualizations(selectedAttr, scatterY) {
           .style("left", (event.pageX + 10) + "px")
           .style("top", (event.pageY + 10) + "px");
       })
-    .on("mouseout", hideTooltip);
+    .on("mouseout", hideTooltip)
+    .on("click", (event, bin) => {
+      // Toggle the selection state of the bin
+      bin.isSelected = !bin.isSelected;
+  
+      // Clear all selections
+      selectedIDs.clear();
+      
+      const currentAttr = d3.select("#attributeSelect").node().value;
+      bins.forEach(b => {
+        if (b.isSelected) {
+          // For each selected bin, add all counties in that bin’s range
+          const rangeMin = b.x0;
+          const rangeMax = b.x1;
+          countyData.forEach(d => {
+            const val = d[currentAttr];
+            if (val >= rangeMin && val <= rangeMax) {
+              selectedIDs.add(String(d.cnty_fips).padStart(5, '0'));
+            }
+          });
+        }
+      });
+  
+      // Update the highlights in all views
+      updateHighlights(currentAttr);
+  
+      // Update the fill of the histogram bars
+      histGroup.selectAll("rect")
+        .attr("fill", b => 
+          b.isSelected ? "red" : colorSchemes[currentAttr][6]
+        );
+    });
 
   histGroup.append("g")
     .attr("transform", `translate(0, ${histInnerHeight})`)
@@ -480,7 +515,6 @@ Promise.all([
       const countyDatum = countyData.find(cd =>
         String(cd.cnty_fips).padStart(5, '0') === String(d.id).padStart(5, '0')
       );
-      console.log("Map county:", countyDatum);
     });
   const defaultAttr = d3.select("#attributeSelect").node().value;
   const defaultSecondAttr = d3.select("#scatterY").node().value;
